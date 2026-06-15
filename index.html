@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>The Penalty Oracle ⚽</title>
+<style>
+  :root {
+    --gold: #ffd75e;
+    --white: #ffffff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+    background: #0b1f2a;
+    color: var(--white);
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 18px 12px 30px;
+    /* leave room for the fixed ad banner so it never covers gameplay */
+    padding-bottom: calc(30px + 90px + env(safe-area-inset-bottom, 0px));
+    overflow-x: hidden;
+  }
+
+  /* ---- bottom banner ad ---- */
+  .ad-banner {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 90px;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+    background: rgba(7, 18, 25, 0.96);
+    border-top: 1px solid rgba(255,255,255,0.12);
+    box-shadow: 0 -6px 18px rgba(0,0,0,0.35);
+  }
+  .ad-banner .ad-label {
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    opacity: 0.5;
+    margin-bottom: 2px;
+  }
+  /* visible placeholder shown until a real AdSense unit fills the slot */
+  .ad-banner .ad-slot {
+    width: 100%;
+    max-width: 728px;
+    min-height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: rgba(255,255,255,0.4);
+    font-size: 0.85rem;
+    border: 1px dashed rgba(255,255,255,0.18);
+    border-radius: 8px;
+    background: repeating-linear-gradient(45deg,
+      rgba(255,255,255,0.03) 0 10px, transparent 10px 20px);
+  }
+  .ad-banner ins.adsbygoogle { display: block; }
+
+  /* ---- the only HUD: 5 result circles ---- */
+  .shots {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .shots .dot {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.14);
+    border: 2px solid rgba(255,255,255,0.4);
+    transition: transform .25s, background .25s, box-shadow .25s;
+  }
+  .shots .dot.goal {
+    background: #38d66b; border-color: #baf7cf; transform: scale(1.2);
+    box-shadow: 0 0 14px rgba(56,214,107,0.8);
+  }
+  .shots .dot.miss {
+    background: #e8503a; border-color: #ffc6bb; transform: scale(1.2);
+    box-shadow: 0 0 14px rgba(232,80,58,0.7);
+  }
+
+  /* ---- the POV scene ---- */
+  .scene {
+    position: relative;
+    width: min(720px, 96vw);
+    aspect-ratio: 10 / 7;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.45);
+    user-select: none;
+  }
+  .scene svg.field { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+  /* clickable aim zones over the goal mouth */
+  .zone {
+    position: absolute;
+    border: 1.5px solid rgba(255,255,255,0.18);
+    border-radius: 4px;
+    background: rgba(255,255,255,0.02);
+    cursor: pointer;
+    z-index: 8;
+    transition: background .12s, border-color .12s, box-shadow .12s;
+  }
+  .zone:hover {
+    background: rgba(255,215,94,0.28);
+    border-color: var(--gold);
+    box-shadow: 0 0 16px rgba(255,215,94,0.55);
+  }
+  .zone .tag {
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%,-50%);
+    font-size: 9px;
+    letter-spacing: .5px;
+    color: #fff;
+    opacity: 0;
+    text-shadow: 0 1px 3px #000;
+    white-space: nowrap;
+    pointer-events: none;
+    transition: opacity .12s;
+  }
+  .zone:hover .tag { opacity: 1; }
+
+  #keeper {
+    position: absolute;
+    left: 50%; top: 37%;
+    width: 12%;
+    transform: translate(-50%,-50%);
+    z-index: 6;
+    pointer-events: none;
+    filter: drop-shadow(0 4px 5px rgba(0,0,0,0.5));
+  }
+  #ball {
+    position: absolute;
+    left: 50%; top: 90%;
+    font-size: clamp(34px, 8vw, 64px);
+    line-height: 1;
+    transform: translate(-50%,-50%) scale(1);
+    z-index: 9;
+    pointer-events: none;
+    filter: drop-shadow(0 10px 8px rgba(0,0,0,0.45));
+  }
+  #ball.hidden { opacity: 0; }
+
+  .controls { text-align: center; margin-top: 14px; min-height: 44px; }
+  .status {
+    font-size: clamp(1rem, 3vw, 1.35rem);
+    font-weight: bold;
+    min-height: 1.5em;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.5);
+  }
+  .hint { opacity: 0.8; font-size: 0.85rem; margin-top: 4px; }
+
+  /* verdict overlay */
+  .verdict {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.8);
+    display: none; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 50; text-align: center; padding: 20px;
+    animation: fade .3s ease;
+  }
+  .verdict.show { display: flex; }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  .verdict .word {
+    font-size: clamp(4rem, 22vw, 12rem);
+    font-weight: 900; letter-spacing: 4px; line-height: 1;
+    text-shadow: 0 0 40px currentColor;
+    animation: pop .5s cubic-bezier(.34,1.56,.64,1);
+  }
+  @keyframes pop { 0% { transform: scale(0); } 100% { transform: scale(1); } }
+  .verdict.yes .word { color: #4dff8a; }
+  .verdict.no  .word { color: #ff5d49; }
+  .verdict .detail { margin-top: 12px; font-size: 1.2rem; opacity: 0.9; }
+  button.action {
+    margin-top: 26px;
+    background: var(--gold); color: #14110a; border: none;
+    padding: 12px 28px; border-radius: 30px;
+    font-size: 1.05rem; font-weight: bold; cursor: pointer;
+    box-shadow: 0 6px 0 #c9a738, 0 10px 18px rgba(0,0,0,0.3);
+    transition: transform .08s, box-shadow .08s;
+  }
+  button.action:hover { transform: translateY(-1px); }
+  button.action:active { transform: translateY(4px); box-shadow: 0 2px 0 #c9a738; }
+</style>
+</head>
+<body>
+
+  <div class="shots" id="shots"></div>
+
+  <div class="scene" id="scene">
+    <svg class="field" viewBox="0 0 1000 700" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#1a2740"/>
+          <stop offset="1" stop-color="#3a5169"/>
+        </linearGradient>
+        <linearGradient id="grass" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#2f7d34"/>
+          <stop offset="1" stop-color="#3fa345"/>
+        </linearGradient>
+        <pattern id="net" width="16" height="16" patternUnits="userSpaceOnUse">
+          <path d="M16 0H0V16" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1"/>
+        </pattern>
+      </defs>
+
+      <!-- sky / stadium -->
+      <rect x="0" y="0" width="1000" height="300" fill="url(#sky)"/>
+      <rect x="0" y="150" width="1000" height="150" fill="#11203a"/>
+      <!-- crowd specks -->
+      <g fill="rgba(255,255,255,0.10)">
+        <rect x="0" y="170" width="1000" height="6"/>
+        <rect x="0" y="186" width="1000" height="6"/>
+        <rect x="0" y="202" width="1000" height="6"/>
+        <rect x="0" y="218" width="1000" height="6"/>
+        <rect x="0" y="234" width="1000" height="6"/>
+      </g>
+
+      <!-- pitch with perspective mowing stripes (compress toward horizon) -->
+      <rect x="0" y="300" width="1000" height="400" fill="url(#grass)"/>
+      <g fill="#379a3b" opacity="0.55">
+        <rect x="0" y="312" width="1000" height="14"/>
+        <rect x="0" y="344" width="1000" height="22"/>
+        <rect x="0" y="392" width="1000" height="34"/>
+        <rect x="0" y="462" width="1000" height="52"/>
+        <rect x="0" y="566" width="1000" height="80"/>
+      </g>
+
+      <!-- penalty box / arc / spot (converging lines sell the POV depth) -->
+      <g fill="none" stroke="rgba(255,255,255,0.85)" stroke-width="3">
+        <line x1="0" y1="300" x2="1000" y2="300"/>            <!-- goal line -->
+        <polygon points="110,665 890,665 650,315 350,315" />  <!-- 18-yard box -->
+        <polygon points="300,480 700,480 600,330 400,330" />  <!-- 6-yard box -->
+        <path d="M420,315 Q500,395 580,315" />                <!-- penalty arc (the D) -->
+      </g>
+      <ellipse cx="500" cy="540" rx="10" ry="4" fill="#fff"/>  <!-- penalty spot -->
+
+      <!-- goal: net, posts, crossbar (big mouth ≈ x30–70%, y17.1–42.9%) -->
+      <rect x="300" y="120" width="400" height="180" fill="url(#net)"/>
+      <rect x="300" y="120" width="400" height="180" fill="rgba(0,0,0,0.18)"/>
+      <g fill="#f4f4f4">
+        <rect x="290" y="118" width="11" height="184" rx="3"/>  <!-- left post -->
+        <rect x="699" y="118" width="11" height="184" rx="3"/>  <!-- right post -->
+        <rect x="290" y="112" width="420" height="11" rx="3"/>  <!-- crossbar -->
+      </g>
+    </svg>
+
+    <!-- aim zones over the goal mouth (mouth ≈ x30–70%, y17.1–42.9%) -->
+    <div class="zone" data-zone="tl"  style="left:30%;   top:17.1%; width:13.3%; height:12.9%;"><span class="tag">TOP L</span></div>
+    <div class="zone" data-zone="mid" style="left:43.3%; top:17.1%; width:13.4%; height:25.8%;"><span class="tag">MIDDLE</span></div>
+    <div class="zone" data-zone="tr"  style="left:56.7%; top:17.1%; width:13.3%; height:12.9%;"><span class="tag">TOP R</span></div>
+    <div class="zone" data-zone="bl"  style="left:30%;   top:30%;   width:13.3%; height:12.9%;"><span class="tag">BTM L</span></div>
+    <div class="zone" data-zone="br"  style="left:56.7%; top:30%;   width:13.3%; height:12.9%;"><span class="tag">BTM R</span></div>
+
+    <!-- goalkeeper -->
+    <svg id="keeper" viewBox="0 0 100 160" xmlns="http://www.w3.org/2000/svg">
+      <g>
+        <rect x="2"  y="44" width="30" height="13" rx="6" fill="#1b9bd8"/>
+        <rect x="68" y="44" width="30" height="13" rx="6" fill="#1b9bd8"/>
+        <circle cx="6"  cy="50" r="9" fill="#fff200"/>
+        <circle cx="94" cy="50" r="9" fill="#fff200"/>
+        <rect x="32" y="40" width="36" height="64" rx="12" fill="#159bd6"/>
+        <rect x="34" y="100" width="32" height="22" rx="6" fill="#0d6fa3"/>
+        <rect x="36" y="118" width="11" height="36" rx="5" fill="#222"/>
+        <rect x="53" y="118" width="11" height="36" rx="5" fill="#222"/>
+        <circle cx="50" cy="26" r="16" fill="#f1c4a0"/>
+        <path d="M34 22 a16 14 0 0 1 32 0 z" fill="#5a3a23"/>
+      </g>
+    </svg>
+
+    <!-- ball -->
+    <div id="ball">⚽</div>
+  </div>
+
+  <div class="controls">
+    <div class="status" id="status">Pick a corner to take your first penalty 👆</div>
+    <div class="hint" id="hint">Brutal keeper · score 3 of 5 to hear YES</div>
+  </div>
+
+  <div class="verdict" id="verdict">
+    <div class="word" id="verdictWord">YES</div>
+    <div class="detail" id="verdictDetail"></div>
+    <button class="action" id="playAgain">Ask Again</button>
+  </div>
+
+  <!-- ===== Bottom banner ad =====
+       To serve real ads, sign up for Google AdSense, then:
+       1) Replace ca-pub-XXXXXXXXXXXXXXXX with your AdSense publisher ID (both places).
+       2) Replace data-ad-slot="0000000000" with a banner ad unit slot ID.
+       3) Uncomment the <script> and the (adsbygoogle...push) call below.
+       Until then, the styled placeholder is shown. -->
+  <div class="ad-banner" role="complementary" aria-label="Advertisement">
+    <span class="ad-label">Advertisement</span>
+    <!-- Real AdSense unit (currently inert placeholder) -->
+    <ins class="adsbygoogle"
+         style="display:none"
+         data-ad-client="ca-pub-XXXXXXXXXXXXXXXX"
+         data-ad-slot="0000000000"
+         data-ad-format="auto"
+         data-full-width-responsive="true"></ins>
+    <div class="ad-slot" id="adFallback">Your ad could be here · 728×90 / 320×50</div>
+  </div>
+  <!--
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script>
+  <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+  -->
+
+<script>
+(() => {
+  const ZONES = ['tl','tr','mid','bl','br'];
+
+  // target point for each zone, as % of the scene (matches the goal mouth)
+  const ZONEPT = {
+    tl:  { x: 37, y: 23.5 },
+    tr:  { x: 63, y: 23.5 },
+    mid: { x: 50, y: 30   },
+    bl:  { x: 37, y: 36.5 },
+    br:  { x: 63, y: 36.5 },
+  };
+  const KEEPER_IDLE = { x: 50, y: 37 };
+  const BALL_START  = { x: 50, y: 90 };
+
+  // which zones a keeper's dive can stretch to reach
+  const NEIGHBORS = {
+    tl: ['mid','bl'], tr: ['mid','br'], mid: ['tl','tr','bl','br'],
+    bl: ['mid','tl'], br: ['mid','tr'],
+  };
+
+  // BRUTAL KEEPER
+  const DIFFICULTY = {
+    onTargetChance:     0.85, // 15% of shots miss the frame / hit the post
+    adjacentSaveChance: 0.65, // fingertip save when keeper dives next to the ball
+  };
+
+  let goals = 0, taken = 0, busy = false, finished = false;
+
+  const elStatus = document.getElementById('status');
+  const elHint   = document.getElementById('hint');
+  const elShots  = document.getElementById('shots');
+  const keeper   = document.getElementById('keeper');
+  const ball     = document.getElementById('ball');
+  const verdict  = document.getElementById('verdict');
+
+  const dots = [];
+  for (let i = 0; i < 5; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot';
+    elShots.appendChild(d);
+    dots.push(d);
+  }
+
+  const leanFor = z => (z==='tl'||z==='bl') ? -32 : (z==='tr'||z==='br') ? 32 : 0;
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+
+  function resetKeeperIdle() {
+    keeper.getAnimations().forEach(a => a.cancel());
+    keeper.style.left = KEEPER_IDLE.x + '%';
+    keeper.style.top  = KEEPER_IDLE.y + '%';
+    keeper.style.transform = 'translate(-50%,-50%) scale(1) rotate(0deg)';
+  }
+  function resetBall() {
+    ball.getAnimations().forEach(a => a.cancel());
+    ball.classList.add('hidden');
+    ball.style.left = BALL_START.x + '%';
+    ball.style.top  = BALL_START.y + '%';
+    ball.style.transform = 'translate(-50%,-50%) scale(1) rotate(0deg)';
+  }
+
+  function diveKeeper(zone) {
+    const p = ZONEPT[zone];
+    return keeper.animate([
+      { left: KEEPER_IDLE.x + '%', top: KEEPER_IDLE.y + '%',
+        transform: 'translate(-50%,-50%) scale(1) rotate(0deg)' },
+      { left: p.x + '%', top: p.y + '%',
+        transform: `translate(-50%,-50%) scale(1.05) rotate(${leanFor(zone)}deg)` },
+    ], { duration: 430, easing: 'cubic-bezier(.34,1.4,.64,1)', fill: 'forwards' });
+  }
+
+  // ball flies from the foreground spot up into the goal, shrinking with depth + arc
+  function flyBall(target) {
+    const midX  = (BALL_START.x + target.x) / 2;
+    const peakY = (BALL_START.y + target.y) / 2 - 14; // lift the mid-point => arc
+    ball.classList.remove('hidden');
+    return ball.animate([
+      { left: BALL_START.x + '%', top: BALL_START.y + '%',
+        transform: 'translate(-50%,-50%) scale(1) rotate(0deg)', offset: 0 },
+      { left: midX + '%', top: peakY + '%',
+        transform: 'translate(-50%,-50%) scale(0.62) rotate(360deg)', offset: 0.5 },
+      { left: target.x + '%', top: target.y + '%',
+        transform: 'translate(-50%,-50%) scale(0.34) rotate(720deg)', offset: 1 },
+    ], { duration: 620, easing: 'ease-in', fill: 'forwards' });
+  }
+
+  // keeper parries the ball away after the save
+  function deflectBall(fromZone) {
+    const p = ZONEPT[fromZone];
+    const away = p.x < 50 ? p.x - 10 : p.x + 10;
+    return ball.animate([
+      { left: p.x + '%', top: p.y + '%',
+        transform: 'translate(-50%,-50%) scale(0.34) rotate(720deg)' },
+      { left: away + '%', top: (p.y + 8) + '%',
+        transform: 'translate(-50%,-50%) scale(0.46) rotate(900deg)' },
+    ], { duration: 280, easing: 'ease-out', fill: 'forwards' });
+  }
+
+  async function shoot(shotZone) {
+    if (busy || finished) return;
+    busy = true;
+
+    const keeperZone = ZONES[Math.floor(Math.random() * ZONES.length)];
+    const onTarget = Math.random() < DIFFICULTY.onTargetChance;
+
+    let saved = false, fingertip = false;
+    if (onTarget) {
+      if (keeperZone === shotZone) {
+        saved = true;
+      } else if (NEIGHBORS[shotZone].includes(keeperZone) &&
+                 Math.random() < DIFFICULTY.adjacentSaveChance) {
+        saved = true; fingertip = true;
+      }
+    }
+    const scored = onTarget && !saved;
+
+    // where the ball ends up
+    const base = ZONEPT[shotZone];
+    let target = { x: base.x, y: base.y };
+    if (!onTarget) {                       // sail wide / over
+      target.x += base.x < 50 ? -7 : base.x > 50 ? 7 : 0;
+      target.y -= 9;
+    }
+
+    elStatus.textContent = 'The keeper sets himself…';
+
+    const flight = flyBall(target);
+    setTimeout(() => diveKeeper(keeperZone), 120);
+    await flight.finished;
+
+    // resolve
+    taken++;
+    const dot = dots[taken - 1];
+    if (scored) {
+      goals++;
+      dot.classList.add('goal');
+      elStatus.textContent = '🥅 GOAL! Back of the net.';
+    } else {
+      dot.classList.add('miss');
+      if (!onTarget)      elStatus.textContent = '😬 Off target! Rattles the woodwork.';
+      else if (fingertip) elStatus.textContent = '🧤 FINGERTIP SAVE! The keeper claws it away.';
+      else                elStatus.textContent = '🧤 SAVED! The keeper guessed right.';
+      if (saved) deflectBall(shotZone);
+    }
+    updateHint();
+
+    await wait(900);
+    resetBall();
+    resetKeeperIdle();
+
+    if (taken >= 5) {
+      finishGame();
+    } else {
+      busy = false;
+      elStatus.textContent = `Penalty ${taken + 1} of 5 — pick your corner.`;
+    }
+  }
+
+  function updateHint() {
+    const remaining = 5 - taken;
+    const needed = Math.max(0, 3 - goals);
+    if (taken >= 5) return;
+    if (goals >= 3)
+      elHint.textContent = `3 goals — YES is locked in, but finish the set!`;
+    else if (needed > remaining)
+      elHint.textContent = `Need ${needed} from ${remaining}… it's slipping away.`;
+    else
+      elHint.textContent = `${goals}/3 goals · ${remaining} penalties left`;
+  }
+
+  function finishGame() {
+    finished = true;
+    const yes = goals >= 3;
+    const word = document.getElementById('verdictWord');
+    const detail = document.getElementById('verdictDetail');
+    verdict.classList.remove('yes','no');
+    verdict.classList.add(yes ? 'yes' : 'no');
+    word.textContent = yes ? 'YES' : 'NO';
+    detail.textContent = yes
+      ? `You scored ${goals}/5 — the oracle says YES. ⚽🎉`
+      : `Only ${goals}/5 scored — the oracle says NO. 🧤`;
+    setTimeout(() => verdict.classList.add('show'), 300);
+  }
+
+  function reset() {
+    goals = 0; taken = 0; busy = false; finished = false;
+    elStatus.textContent = 'Pick a corner to take your first penalty 👆';
+    elHint.textContent = 'Brutal keeper · score 3 of 5 to hear YES';
+    dots.forEach(d => d.className = 'dot');
+    verdict.classList.remove('show');
+    resetBall();
+    resetKeeperIdle();
+  }
+
+  document.querySelectorAll('.zone').forEach(z =>
+    z.addEventListener('click', () => shoot(z.dataset.zone)));
+  document.getElementById('playAgain').addEventListener('click', reset);
+
+  resetBall();
+  resetKeeperIdle();
+})();
+</script>
+</body>
+</html>
