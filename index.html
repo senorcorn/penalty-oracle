@@ -194,6 +194,37 @@
   }
   button.action:hover { transform: translateY(-1px); }
   button.action:active { transform: translateY(4px); box-shadow: 0 2px 0 #c9a738; }
+
+  /* ---- article / about / FAQ content ---- */
+  .content {
+    width: min(720px, 96vw);
+    margin: 26px auto 10px;
+    line-height: 1.6;
+    color: rgba(255,255,255,0.9);
+  }
+  .content section { margin-bottom: 26px; }
+  .content h2 {
+    font-size: 1.3rem;
+    color: var(--gold);
+    margin-bottom: 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    padding-bottom: 6px;
+  }
+  .content h3 { font-size: 1.02rem; margin: 14px 0 4px; }
+  .content p { margin-bottom: 10px; font-size: 0.95rem; }
+  .content ol, .content ul { margin: 0 0 10px 22px; font-size: 0.95rem; }
+  .content li { margin-bottom: 5px; }
+  .content a { color: #8fd0ff; }
+  .site-footer {
+    width: min(720px, 96vw);
+    margin: 10px auto 0;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255,255,255,0.12);
+    text-align: center;
+    font-size: 0.82rem;
+    opacity: 0.7;
+  }
+  .site-footer a { color: #8fd0ff; margin: 0 8px; }
 </style>
 </head>
 <body>
@@ -288,6 +319,61 @@
     <div class="status" id="status">Pick a corner to take your first penalty 👆</div>
     <div class="hint" id="hint">Brutal keeper · score 3 of 5 to hear YES</div>
   </div>
+
+  <article class="content">
+    <section>
+      <h2>About The Penalty Oracle</h2>
+      <p>
+        The Penalty Oracle is a free browser game that turns any yes-or-no question into a
+        penalty shootout. Stuck on a decision? Wondering whether your team will win, whether
+        to order pizza, or whether to text them back? Ask the question out loud, step up to
+        the spot, and let your aim decide. It is a light-hearted twist on the classic
+        "magic answer" toys — no sign-up, no download, and it works on phones and desktops.
+      </p>
+    </section>
+
+    <section>
+      <h2>How to Play</h2>
+      <ol>
+        <li>Say your yes-or-no question out loud, for example <em>"Will Spain beat Japan?"</em></li>
+        <li>You get <strong>five penalty kicks</strong>. Each turn, pick a target by tapping one of the five zones on the goal: top left, top right, middle, bottom left, or bottom right.</li>
+        <li>The goalkeeper dives to guess where you shot. Beat him and it is a goal; guess the same spot and it is a save. He can also make fingertip saves on nearby shots, and some shots fly off target.</li>
+        <li>Score <strong>3 or more of your 5 kicks</strong> and the Oracle answers <strong>YES</strong>. Score fewer and the answer is <strong>NO</strong>.</li>
+        <li>Press <em>Ask Again</em> to pose a new question.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>Tips Against the Brutal Keeper</h2>
+      <p>
+        This keeper is deliberately tough, so a YES has to be earned. A few things help:
+      </p>
+      <ul>
+        <li>The <strong>middle</strong> is risky — the keeper can reach it from almost any dive, so use it sparingly.</li>
+        <li>The <strong>corners</strong> beat the keeper more often, but blast too wildly and the ball sails off target.</li>
+        <li>There is no perfect strategy — that uncertainty is the whole point of asking the Oracle.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Frequently Asked Questions</h2>
+      <h3>Is it really random?</h3>
+      <p>The keeper's dive and whether a shot stays on target are decided randomly each kick, so no two shootouts play out the same way. It is a game of chance for fun — please do not use it for important decisions.</p>
+      <h3>Does it cost anything?</h3>
+      <p>No. The Penalty Oracle is completely free to play. The site is supported by advertising.</p>
+      <h3>Do I need to install anything?</h3>
+      <p>No. It runs entirely in your web browser on mobile or desktop.</p>
+    </section>
+  </article>
+
+  <footer class="site-footer">
+    <p>
+      <a href="index.html">Play</a> ·
+      <a href="privacy.html">Privacy Policy</a> ·
+      <a href="https://github.com/senorcorn/penalty-oracle" target="_blank" rel="noopener">Source</a>
+    </p>
+    <p>The Penalty Oracle is a game for entertainment only. © 2026</p>
+  </footer>
 
   <div class="verdict" id="verdict">
     <div class="word" id="verdictWord">YES</div>
