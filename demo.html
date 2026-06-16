@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>The Penalty Oracle — Demo ⚽</title>
+<style>
+  :root { --gold: #ffd75e; --white: #ffffff; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+    background: #0b1f2a;
+    color: var(--white);
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 22px 12px 40px;
+    overflow-x: hidden;
+  }
+
+  .hero { text-align: center; margin-bottom: 14px; }
+  .hero h1 { font-size: clamp(1.4rem, 4vw, 2rem); letter-spacing: .5px;
+    text-shadow: 0 2px 0 rgba(0,0,0,.25), 0 0 18px rgba(255,215,94,.35); }
+  .hero h1 .ball { display: inline-block; animation: spin 3s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .badge {
+    display: inline-block; margin-top: 6px;
+    font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+    color: #0b1f2a; background: var(--gold); font-weight: bold;
+    padding: 3px 10px; border-radius: 999px;
+  }
+
+  /* spoken question caption (typed) */
+  .ask {
+    width: min(640px, 94vw);
+    margin: 6px auto 14px;
+    min-height: 54px;
+    display: flex; align-items: center; gap: 12px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 14px;
+    padding: 12px 18px;
+    font-size: clamp(1rem, 2.6vw, 1.25rem);
+  }
+  .ask .mic { font-size: 1.4rem; opacity: .9; }
+  .ask .q { font-style: italic; }
+  .ask .caret { display: inline-block; width: 2px; height: 1.1em; background: var(--gold);
+    margin-left: 2px; vertical-align: -2px; animation: blink .9s step-end infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .shots { display: flex; gap: 12px; margin-bottom: 14px; }
+  .shots .dot {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: rgba(255,255,255,0.14); border: 2px solid rgba(255,255,255,0.4);
+    transition: transform .25s, background .25s, box-shadow .25s;
+  }
+  .shots .dot.goal { background: #38d66b; border-color: #baf7cf; transform: scale(1.2);
+    box-shadow: 0 0 14px rgba(56,214,107,0.8); }
+  .shots .dot.miss { background: #e8503a; border-color: #ffc6bb; transform: scale(1.2);
+    box-shadow: 0 0 14px rgba(232,80,58,0.7); }
+
+  .scene {
+    position: relative; width: min(720px, 96vw); aspect-ratio: 10 / 7;
+    border-radius: 14px; overflow: hidden;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.45); user-select: none;
+  }
+  .scene svg.field { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+  /* aim zones — non-interactive in the demo, highlighted by the script */
+  .zone {
+    position: absolute; border: 1.5px solid rgba(255,255,255,0.12);
+    border-radius: 4px; background: rgba(255,255,255,0.02);
+    z-index: 8; pointer-events: none;
+    transition: background .15s, border-color .15s, box-shadow .15s;
+  }
+  .zone.aim {
+    background: rgba(255,215,94,0.30); border-color: var(--gold);
+    box-shadow: 0 0 18px rgba(255,215,94,0.6);
+  }
+  .zone .tag {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+    font-size: 10px; letter-spacing: .5px; color: #fff; opacity: 0;
+    text-shadow: 0 1px 3px #000; white-space: nowrap; transition: opacity .15s;
+  }
+  .zone.aim .tag { opacity: 1; }
+
+  #keeper {
+    position: absolute; left: 50%; top: 37%; width: 12%;
+    transform: translate(-50%,-50%); z-index: 6; pointer-events: none;
+    filter: drop-shadow(0 4px 5px rgba(0,0,0,0.5));
+  }
+  #ball {
+    position: absolute; left: 50%; top: 90%;
+    font-size: clamp(34px, 8vw, 64px); line-height: 1;
+    transform: translate(-50%,-50%) scale(1); z-index: 9; pointer-events: none;
+    filter: drop-shadow(0 10px 8px rgba(0,0,0,0.45));
+  }
+  #ball.hidden { opacity: 0; }
+
+  .status {
+    text-align: center; margin-top: 14px; min-height: 1.6em;
+    font-size: clamp(1rem, 3vw, 1.35rem); font-weight: bold;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.5);
+  }
+
+  /* verdict reveal */
+  .verdict {
+    width: min(640px, 94vw); margin: 16px auto 0; text-align: center;
+    opacity: 0; transform: translateY(10px) scale(.96);
+    transition: opacity .4s ease, transform .4s cubic-bezier(.34,1.56,.64,1);
+  }
+  .verdict.show { opacity: 1; transform: none; }
+  .verdict .word { font-size: clamp(3rem, 16vw, 7rem); font-weight: 900; letter-spacing: 4px;
+    line-height: 1; text-shadow: 0 0 36px currentColor; }
+  .verdict.yes .word { color: #4dff8a; }
+  .verdict.no  .word { color: #ff5d49; }
+  .verdict .detail { margin-top: 8px; font-size: 1.05rem; opacity: .9; }
+
+  .footer-note { margin-top: 22px; font-size: .8rem; opacity: .55; text-align: center; }
+  .footer-note a { color: #8fd0ff; }
+</style>
+</head>
+<body>
+  <div class="hero">
+    <h1><span class="ball">⚽</span> The Penalty Oracle</h1>
+    <span class="badge">Auto-playing demo</span>
+  </div>
+
+  <div class="ask">
+    <span class="mic">🗣️</span>
+    <span class="q" id="askText"></span><span class="caret" id="askCaret" style="display:none"></span>
+  </div>
+
+  <div class="shots" id="shots"></div>
+
+  <div class="scene" id="scene">
+    <svg class="field" viewBox="0 0 1000 700" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#1a2740"/><stop offset="1" stop-color="#3a5169"/>
+        </linearGradient>
+        <linearGradient id="grass" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#2f7d34"/><stop offset="1" stop-color="#3fa345"/>
+        </linearGradient>
+        <pattern id="net" width="16" height="16" patternUnits="userSpaceOnUse">
+          <path d="M16 0H0V16" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1"/>
+        </pattern>
+      </defs>
+      <rect x="0" y="0" width="1000" height="300" fill="url(#sky)"/>
+      <rect x="0" y="150" width="1000" height="150" fill="#11203a"/>
+      <g fill="rgba(255,255,255,0.10)">
+        <rect x="0" y="170" width="1000" height="6"/><rect x="0" y="186" width="1000" height="6"/>
+        <rect x="0" y="202" width="1000" height="6"/><rect x="0" y="218" width="1000" height="6"/>
+        <rect x="0" y="234" width="1000" height="6"/>
+      </g>
+      <rect x="0" y="300" width="1000" height="400" fill="url(#grass)"/>
+      <g fill="#379a3b" opacity="0.55">
+        <rect x="0" y="312" width="1000" height="14"/><rect x="0" y="344" width="1000" height="22"/>
+        <rect x="0" y="392" width="1000" height="34"/><rect x="0" y="462" width="1000" height="52"/>
+        <rect x="0" y="566" width="1000" height="80"/>
+      </g>
+      <g fill="none" stroke="rgba(255,255,255,0.85)" stroke-width="3">
+        <line x1="0" y1="300" x2="1000" y2="300"/>
+        <polygon points="110,665 890,665 650,315 350,315" />
+        <polygon points="300,480 700,480 600,330 400,330" />
+        <path d="M420,315 Q500,395 580,315" />
+      </g>
+      <ellipse cx="500" cy="540" rx="10" ry="4" fill="#fff"/>
+      <rect x="300" y="120" width="400" height="180" fill="url(#net)"/>
+      <rect x="300" y="120" width="400" height="180" fill="rgba(0,0,0,0.18)"/>
+      <g fill="#f4f4f4">
+        <rect x="290" y="118" width="11" height="184" rx="3"/>
+        <rect x="699" y="118" width="11" height="184" rx="3"/>
+        <rect x="290" y="112" width="420" height="11" rx="3"/>
+      </g>
+    </svg>
+
+    <div class="zone" data-zone="tl"  style="left:30%;   top:17.1%; width:13.3%; height:12.9%;"><span class="tag">TOP L</span></div>
+    <div class="zone" data-zone="mid" style="left:43.3%; top:17.1%; width:13.4%; height:25.8%;"><span class="tag">MIDDLE</span></div>
+    <div class="zone" data-zone="tr"  style="left:56.7%; top:17.1%; width:13.3%; height:12.9%;"><span class="tag">TOP R</span></div>
+    <div class="zone" data-zone="bl"  style="left:30%;   top:30%;   width:13.3%; height:12.9%;"><span class="tag">BTM L</span></div>
+    <div class="zone" data-zone="br"  style="left:56.7%; top:30%;   width:13.3%; height:12.9%;"><span class="tag">BTM R</span></div>
+
+    <svg id="keeper" viewBox="0 0 100 160" xmlns="http://www.w3.org/2000/svg">
+      <g>
+        <rect x="2"  y="44" width="30" height="13" rx="6" fill="#1b9bd8"/>
+        <rect x="68" y="44" width="30" height="13" rx="6" fill="#1b9bd8"/>
+        <circle cx="6"  cy="50" r="9" fill="#fff200"/>
+        <circle cx="94" cy="50" r="9" fill="#fff200"/>
+        <rect x="32" y="40" width="36" height="64" rx="12" fill="#159bd6"/>
+        <rect x="34" y="100" width="32" height="22" rx="6" fill="#0d6fa3"/>
+        <rect x="36" y="118" width="11" height="36" rx="5" fill="#222"/>
+        <rect x="53" y="118" width="11" height="36" rx="5" fill="#222"/>
+        <circle cx="50" cy="26" r="16" fill="#f1c4a0"/>
+        <path d="M34 22 a16 14 0 0 1 32 0 z" fill="#5a3a23"/>
+      </g>
+    </svg>
+    <div id="ball">⚽</div>
+  </div>
+
+  <div class="status" id="status">&nbsp;</div>
+
+  <div class="verdict" id="verdict">
+    <div class="word" id="verdictWord">YES</div>
+    <div class="detail" id="verdictDetail"></div>
+  </div>
+
+  <div class="footer-note">
+    This is an automated preview. <a href="index.html">▶ Play the real game</a>
+  </div>
+
+<script>
+(() => {
+  const ZONEPT = {
+    tl:{x:37,y:23.5}, tr:{x:63,y:23.5}, mid:{x:50,y:30},
+    bl:{x:37,y:36.5}, br:{x:63,y:36.5},
+  };
+  const KEEPER_IDLE = { x: 50, y: 37 };
+  const BALL_START  = { x: 50, y: 90 };
+  const ZONES = ['tl','tr','mid','bl','br'];
+
+  const elAsk    = document.getElementById('askText');
+  const elCaret  = document.getElementById('askCaret');
+  const elStatus = document.getElementById('status');
+  const elShots  = document.getElementById('shots');
+  const keeper   = document.getElementById('keeper');
+  const ball     = document.getElementById('ball');
+  const verdict  = document.getElementById('verdict');
+  const zoneEls  = {};
+  document.querySelectorAll('.zone').forEach(z => zoneEls[z.dataset.zone] = z);
+
+  const dots = [];
+  for (let i = 0; i < 5; i++) { const d = document.createElement('div'); d.className='dot'; elShots.appendChild(d); dots.push(d); }
+
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const leanFor = z => (z==='tl'||z==='bl')?-32:(z==='tr'||z==='br')?32:0;
+
+  function resetKeeper() {
+    keeper.getAnimations().forEach(a=>a.cancel());
+    keeper.style.left = KEEPER_IDLE.x+'%'; keeper.style.top = KEEPER_IDLE.y+'%';
+    keeper.style.transform = 'translate(-50%,-50%) scale(1) rotate(0deg)';
+  }
+  function resetBall() {
+    ball.getAnimations().forEach(a=>a.cancel());
+    ball.classList.add('hidden');
+    ball.style.left = BALL_START.x+'%'; ball.style.top = BALL_START.y+'%';
+    ball.style.transform = 'translate(-50%,-50%) scale(1) rotate(0deg)';
+  }
+  function diveKeeper(zone) {
+    const p = ZONEPT[zone];
+    return keeper.animate([
+      { left:KEEPER_IDLE.x+'%', top:KEEPER_IDLE.y+'%', transform:'translate(-50%,-50%) scale(1) rotate(0deg)' },
+      { left:p.x+'%', top:p.y+'%', transform:`translate(-50%,-50%) scale(1.05) rotate(${leanFor(zone)}deg)` },
+    ], { duration:430, easing:'cubic-bezier(.34,1.4,.64,1)', fill:'forwards' });
+  }
+  function flyBall(t) {
+    const midX=(BALL_START.x+t.x)/2, peakY=(BALL_START.y+t.y)/2-14;
+    ball.classList.remove('hidden');
+    return ball.animate([
+      { left:BALL_START.x+'%', top:BALL_START.y+'%', transform:'translate(-50%,-50%) scale(1) rotate(0deg)', offset:0 },
+      { left:midX+'%', top:peakY+'%', transform:'translate(-50%,-50%) scale(0.62) rotate(360deg)', offset:0.5 },
+      { left:t.x+'%', top:t.y+'%', transform:'translate(-50%,-50%) scale(0.34) rotate(720deg)', offset:1 },
+    ], { duration:620, easing:'ease-in', fill:'forwards' });
+  }
+  function deflectBall(zone) {
+    const p = ZONEPT[zone], away = p.x<50 ? p.x-10 : p.x+10;
+    return ball.animate([
+      { left:p.x+'%', top:p.y+'%', transform:'translate(-50%,-50%) scale(0.34) rotate(720deg)' },
+      { left:away+'%', top:(p.y+8)+'%', transform:'translate(-50%,-50%) scale(0.46) rotate(900deg)' },
+    ], { duration:280, easing:'ease-out', fill:'forwards' });
+  }
+
+  async function typeQuestion(q) {
+    elAsk.textContent = '“';
+    elCaret.style.display = 'inline-block';
+    for (const ch of q) { elAsk.textContent += ch; await wait(45); }
+    elAsk.textContent += '”';
+    await wait(500);
+    elCaret.style.display = 'none';
+  }
+
+  async function takeShot(shotZone, scored, idx) {
+    // keeper guesses: same zone => save; otherwise a wrong zone => goal
+    let keeperZone = shotZone;
+    if (scored) { do { keeperZone = ZONES[Math.floor(Math.random()*5)]; } while (keeperZone === shotZone); }
+
+    zoneEls[shotZone].classList.add('aim');
+    elStatus.textContent = 'Picks a corner…';
+    await wait(520);
+
+    const flight = flyBall(ZONEPT[shotZone]);
+    setTimeout(() => diveKeeper(keeperZone), 120);
+    await flight.finished;
+    zoneEls[shotZone].classList.remove('aim');
+
+    if (scored) { dots[idx].classList.add('goal'); elStatus.textContent = '🥅 GOAL!'; }
+    else { dots[idx].classList.add('miss'); deflectBall(shotZone); elStatus.textContent = '🧤 SAVED!'; }
+
+    await wait(750);
+    resetBall(); resetKeeper();
+  }
+
+  async function playScenario(sc) {
+    // reset
+    verdict.classList.remove('show','yes','no');
+    dots.forEach(d => d.className = 'dot');
+    elStatus.innerHTML = '&nbsp;';
+    elAsk.textContent = '';
+    resetBall(); resetKeeper();
+    await wait(500);
+
+    await typeQuestion(sc.q);
+    elStatus.textContent = 'Step up — 5 penalties, need 3 to score.';
+    await wait(700);
+
+    let goals = 0;
+    for (let i = 0; i < sc.shots.length; i++) {
+      const s = sc.shots[i];
+      await takeShot(s.zone, s.scored, i);
+      if (s.scored) goals++;
+    }
+
+    const yes = goals >= 3;
+    document.getElementById('verdictWord').textContent = yes ? 'YES' : 'NO';
+    document.getElementById('verdictDetail').textContent =
+      `${goals}/5 scored — the oracle says ${yes ? 'YES ⚽🎉' : 'NO 🧤'}`;
+    elStatus.innerHTML = '&nbsp;';
+    verdict.classList.add(yes ? 'yes' : 'no', 'show');
+    await wait(2800);
+  }
+
+  const SCENARIOS = [
+    { q: 'Will Spain beat Japan?',     shots: [ {zone:'bl',scored:true}, {zone:'tr',scored:true}, {zone:'mid',scored:false}, {zone:'br',scored:true}, {zone:'tl',scored:false} ] },
+    { q: 'Should I text them back?',   shots: [ {zone:'tl',scored:false}, {zone:'br',scored:true}, {zone:'mid',scored:false}, {zone:'tr',scored:false}, {zone:'bl',scored:true} ] },
+    { q: 'Is pizza a good idea tonight?', shots: [ {zone:'tr',scored:true}, {zone:'bl',scored:true}, {zone:'br',scored:false}, {zone:'tl',scored:true}, {zone:'mid',scored:false} ] },
+  ];
+
+  (async () => {
+    resetBall(); resetKeeper();
+    let i = 0;
+    while (true) { await playScenario(SCENARIOS[i % SCENARIOS.length]); i++; }
+  })();
+})();
+</script>
+</body>
+</html>
