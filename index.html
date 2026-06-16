@@ -195,36 +195,80 @@
   button.action:hover { transform: translateY(-1px); }
   button.action:active { transform: translateY(4px); box-shadow: 0 2px 0 #c9a738; }
 
-  /* ---- article / about / FAQ content ---- */
-  .content {
-    width: min(720px, 96vw);
-    margin: 26px auto 10px;
-    line-height: 1.6;
-    color: rgba(255,255,255,0.9);
-  }
-  .content section { margin-bottom: 26px; }
-  .content h2 {
+  /* ---- info button + About popup ---- */
+  .info-btn {
+    position: fixed;
+    left: 14px;
+    bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+    z-index: 45;
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.5);
+    background: rgba(7,18,25,0.85);
+    color: #fff;
+    font-family: Georgia, "Times New Roman", serif;
+    font-style: italic;
+    font-weight: bold;
     font-size: 1.3rem;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    transition: transform .1s, background .15s, border-color .15s;
+  }
+  .info-btn:hover {
+    background: rgba(255,215,94,0.25);
+    border-color: var(--gold);
+    transform: translateY(-2px);
+  }
+
+  .info-modal {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.78);
+    display: none;
+    align-items: center; justify-content: center;
+    z-index: 60; padding: 20px;
+    animation: fade .25s ease;
+  }
+  .info-modal.show { display: flex; }
+  .info-panel {
+    position: relative;
+    width: min(680px, 100%);
+    max-height: 86vh;
+    overflow-y: auto;
+    background: #10242f;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 14px;
+    padding: 28px 26px 30px;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+  }
+  .info-close {
+    position: absolute; top: 12px; right: 14px;
+    width: 32px; height: 32px; border-radius: 50%;
+    border: none; background: rgba(255,255,255,0.12); color: #fff;
+    font-size: 1.1rem; line-height: 1; cursor: pointer;
+  }
+  .info-close:hover { background: rgba(255,255,255,0.25); }
+
+  .content { line-height: 1.6; color: rgba(255,255,255,0.9); }
+  .content section { margin-bottom: 22px; }
+  .content section:last-child { margin-bottom: 0; }
+  .content h2 {
+    font-size: 1.25rem;
     color: var(--gold);
     margin-bottom: 8px;
     border-bottom: 1px solid rgba(255,255,255,0.12);
     padding-bottom: 6px;
   }
-  .content h3 { font-size: 1.02rem; margin: 14px 0 4px; }
-  .content p { margin-bottom: 10px; font-size: 0.95rem; }
-  .content ol, .content ul { margin: 0 0 10px 22px; font-size: 0.95rem; }
+  .content h3 { font-size: 1rem; margin: 12px 0 4px; }
+  .content p { margin-bottom: 10px; font-size: 0.93rem; }
+  .content ol, .content ul { margin: 0 0 10px 22px; font-size: 0.93rem; }
   .content li { margin-bottom: 5px; }
   .content a { color: #8fd0ff; }
-  .site-footer {
-    width: min(720px, 96vw);
-    margin: 10px auto 0;
-    padding-top: 14px;
+  .info-links {
+    margin-top: 18px; padding-top: 14px;
     border-top: 1px solid rgba(255,255,255,0.12);
-    text-align: center;
-    font-size: 0.82rem;
-    opacity: 0.7;
+    text-align: center; font-size: 0.85rem; opacity: 0.85;
   }
-  .site-footer a { color: #8fd0ff; margin: 0 8px; }
+  .info-links a { color: #8fd0ff; margin: 0 8px; }
 </style>
 </head>
 <body>
@@ -320,7 +364,13 @@
     <div class="hint" id="hint">Brutal keeper · score 3 of 5 to hear YES</div>
   </div>
 
-  <article class="content">
+  <!-- info button (bottom-left) opens the About popup -->
+  <button class="info-btn" id="infoBtn" aria-label="About this game" title="About">i</button>
+
+  <div class="info-modal" id="infoModal" role="dialog" aria-modal="true" aria-label="About The Penalty Oracle">
+   <div class="info-panel">
+    <button class="info-close" id="infoClose" aria-label="Close">✕</button>
+    <article class="content">
     <section>
       <h2>About The Penalty Oracle</h2>
       <p>
@@ -364,16 +414,14 @@
       <h3>Do I need to install anything?</h3>
       <p>No. It runs entirely in your web browser on mobile or desktop.</p>
     </section>
-  </article>
-
-  <footer class="site-footer">
-    <p>
-      <a href="index.html">Play</a> ·
+    <div class="info-links">
       <a href="privacy.html">Privacy Policy</a> ·
       <a href="https://github.com/senorcorn/penalty-oracle" target="_blank" rel="noopener">Source</a>
-    </p>
-    <p>The Penalty Oracle is a game for entertainment only. © 2026</p>
-  </footer>
+      <p style="margin-top:8px;opacity:0.7">For entertainment only. © 2026</p>
+    </div>
+    </article>
+   </div>
+  </div>
 
   <div class="verdict" id="verdict">
     <div class="word" id="verdictWord">YES</div>
@@ -601,6 +649,15 @@
   document.querySelectorAll('.zone').forEach(z =>
     z.addEventListener('click', () => shoot(z.dataset.zone)));
   document.getElementById('playAgain').addEventListener('click', reset);
+
+  // About popup (info button)
+  const infoModal = document.getElementById('infoModal');
+  const openInfo  = () => infoModal.classList.add('show');
+  const closeInfo = () => infoModal.classList.remove('show');
+  document.getElementById('infoBtn').addEventListener('click', openInfo);
+  document.getElementById('infoClose').addEventListener('click', closeInfo);
+  infoModal.addEventListener('click', e => { if (e.target === infoModal) closeInfo(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeInfo(); });
 
   resetBall();
   resetKeeperIdle();
