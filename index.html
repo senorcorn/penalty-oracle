@@ -24,50 +24,8 @@
     align-items: center;
     justify-content: flex-start;
     padding: 18px 12px 30px;
-    /* leave room for the fixed ad banner so it never covers gameplay */
-    padding-bottom: calc(30px + 90px + env(safe-area-inset-bottom, 0px));
     overflow-x: hidden;
   }
-
-  /* ---- bottom banner ad ---- */
-  .ad-banner {
-    position: fixed;
-    left: 0; right: 0; bottom: 0;
-    z-index: 40;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 90px;
-    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
-    background: rgba(7, 18, 25, 0.96);
-    border-top: 1px solid rgba(255,255,255,0.12);
-    box-shadow: 0 -6px 18px rgba(0,0,0,0.35);
-  }
-  .ad-banner .ad-label {
-    font-size: 9px;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    opacity: 0.5;
-    margin-bottom: 2px;
-  }
-  /* visible placeholder shown until a real AdSense unit fills the slot */
-  .ad-banner .ad-slot {
-    width: 100%;
-    max-width: 728px;
-    min-height: 60px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    color: rgba(255,255,255,0.4);
-    font-size: 0.85rem;
-    border: 1px dashed rgba(255,255,255,0.18);
-    border-radius: 8px;
-    background: repeating-linear-gradient(45deg,
-      rgba(255,255,255,0.03) 0 10px, transparent 10px 20px);
-  }
-  .ad-banner ins.adsbygoogle { display: block; }
 
   /* ---- the only HUD: 5 result circles ---- */
   .shots {
@@ -199,7 +157,7 @@
   .info-btn {
     position: fixed;
     left: 14px;
-    bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
     z-index: 45;
     width: 40px; height: 40px;
     border-radius: 50%;
@@ -429,28 +387,9 @@
     <button class="action" id="playAgain">Ask Again</button>
   </div>
 
-  <!-- ===== Bottom banner ad =====
-       Publisher ID (ca-pub-1990816648347885) is live; the loader is in <head>.
-       AFTER AdSense approves the site and you create a banner ad unit:
-       1) Replace data-ad-slot="0000000000" below with your real ad unit slot ID.
-       2) Change the <ins> style to display:block.
-       3) Remove the #adFallback placeholder div.
-       4) Uncomment the (adsbygoogle...push) call below.
-       Until then, the styled placeholder is shown. -->
-  <div class="ad-banner" role="complementary" aria-label="Advertisement">
-    <span class="ad-label">Advertisement</span>
-    <!-- Real AdSense unit (currently inert placeholder) -->
-    <ins class="adsbygoogle"
-         style="display:none"
-         data-ad-client="ca-pub-1990816648347885"
-         data-ad-slot="0000000000"
-         data-ad-format="auto"
-         data-full-width-responsive="true"></ins>
-    <div class="ad-slot" id="adFallback">Your ad could be here · 728×90 / 320×50</div>
-  </div>
-  <!-- After approval + a real slot, uncomment this to request the ad fill:
-  <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
-  -->
+  <!-- Bottom banner ad removed for now. The AdSense loader stays in <head> for
+       site verification. To re-add a banner later: create a Display ad unit and
+       re-insert an <ins class="adsbygoogle"> here. -->
 
 <script>
 (() => {
